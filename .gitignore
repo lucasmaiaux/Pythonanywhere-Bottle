@@ -177,4 +177,9 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 pyvenv.cfg
+upload.py
 
+# Fichiers projet spécifiques à ignorer
+script.py
+todo.db
+*.db
