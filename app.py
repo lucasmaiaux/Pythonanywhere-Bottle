@@ -1,19 +1,25 @@
-import pymysql
 from pathlib import Path
-from bottle import Bottle, template, request, redirect, static_file
+from bottle import Bottle, default_app, get, template, request, redirect, static_file
+import mysql.connector
 
 ABSOLUTE_APPLICATION_PATH = Path(__file__).parents[0]
 app = Bottle()
 
-# Configuration MySQL pour PythonAnywhere
-def get_db_connection():
-    return pymysql.connect(
-        host='Lucas129.mysql.pythonanywhere-services.com',
-        user='Lucas129',
-        password='mysqlpass',  # Remplacez par votre mot de passe
-        database='Lucas129$todo',
-        charset='utf8mb4'
-    )
+####### configure mysql db connfiguration properties ###############
+
+db_config = {
+        "host":"Lucas129.mysql.pythonanywhere-services.com",
+        "user":"Lucas129",
+        "password":"mysqlpass",
+        "database":"Lucas129$todo"
+        }
+
+####### setup DB connection and cursor  ############################
+
+mysqlConnection = mysql.connector.connect(**db_config)
+cursor = mysqlConnection.cursor()
+
+####### route definitions  #########################################
 
 @app.route('/')
 def index():
@@ -32,10 +38,9 @@ def todo_list():
         case _:
             return template('message.tpl',
                 message = 'Wrong query parameter: show must be either open, closed or all.')
-    with get_db_connection() as connection:
-        cursor = connection.cursor()
-        cursor.execute(db_query)
-        result = cursor.fetchall()
+
+    cursor.execute(db_query)
+    result = cursor.fetchall()
     output = template('show_tasks.tpl', rows=result)
     return output
 
@@ -43,11 +48,8 @@ def todo_list():
 def new_task():
     if request.POST:
         new_task = request.forms.task.strip()
-        with get_db_connection() as connection:
-            cursor = connection.cursor()
-            cursor.execute("INSERT INTO todo (task,status) VALUES (%s,%s)", (new_task, 1))
-            new_id = cursor.lastrowid
-            connection.commit()
+        cursor.execute("INSERT INTO todo (task,status) VALUES (%s,%s)", (new_task, 1))
+        new_id = cursor.lastrowid
         return template('message.tpl',
             message=f'The new task was inserted into the database, the ID is {new_id}')
     else:
@@ -55,10 +57,8 @@ def new_task():
 
 @app.route('/details/<number:int>')
 def show_task(number):
-    with get_db_connection() as connection:
-        cursor = connection.cursor()
-        cursor.execute("SELECT task FROM todo WHERE id = %s", (number,))
-        current_data = cursor.fetchall()
+    cursor.execute("SELECT task FROM todo WHERE id = %s", (number,))
+    current_data = cursor.fetchall()
     return template('show_tasks', rows=current_data)
 
 
@@ -71,25 +71,18 @@ def edit_task(number):
             status = 1
         else:
             status = 0
-        with get_db_connection() as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE todo SET task = %s, status = %s WHERE id = %s", (new_data, status, number))
-            connection.commit()
+        cursor.execute("UPDATE todo SET task = %s, status = %s WHERE id = %s", (new_data, status, number))
         return template('message.tpl',
                         message=f'The task number {number} was successfully updated')
     else:
-        with get_db_connection() as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT task FROM todo WHERE id = %s", (number,))
-            current_data = cursor.fetchone()
+        cursor.execute("SELECT task FROM todo WHERE id = %s", (number,))
+        current_data = cursor.fetchone()
         return template('edit_task', current_data=current_data, number=number)
 
 @app.route('/as_json/<number:re:[0-9]+>')
 def task_as_json(number):
-    with get_db_connection() as connection:
-        cursor = connection.cursor()
-        cursor.execute("SELECT id, task, status FROM todo WHERE id = %s", (number,))
-        result = cursor.fetchone()
+    cursor.execute("SELECT id, task, status FROM todo WHERE id = %s", (number,))
+    result = cursor.fetchone()
     if not result:
         return {'task': 'This task ID number does not exist!'}
     else:
